@@ -26,6 +26,13 @@ def fused_linear_cross_entropy_forward(
     )
     device = _input.device
 
+    if torch.cuda.is_available() and torch.version.cuda:
+        num_warps = 32
+    elif torch.cuda.is_available() and torch.version.hip:
+        num_warps = 16
+    else:
+        raise NotImplementedError
+
     # inputs have shape: BT x H
     # materialized activations will have shape: BT x V
     # the increase in memory = BT x V
@@ -92,7 +99,7 @@ def fused_linear_cross_entropy_forward(
             label_smoothing=label_smoothing,
             reduction=reduction,
             BLOCK_SIZE=BLOCK_SIZE,
-            num_warps=32,
+            num_warps=num_warps,
         )
 
         # gradient of logits_chunk is computed in-place by the above triton kernel.
@@ -143,6 +150,14 @@ def fused_linear_cross_entropy_forward(
 def fused_linear_cross_entropy_backward(
     grad_output, grad_input, grad_weight, grad_bias
 ):
+
+    if torch.cuda.is_available() and torch.version.cuda:
+        num_warps = 32
+    elif torch.cuda.is_available() and torch.version.hip:
+        num_warps = 16
+    else:
+        raise NotImplementedError
+
     # If cross entropy is the last layer, grad_output is 1.0. Skip the mul to save time
     if torch.ne(grad_output, torch.tensor(1.0, device=grad_output.device)):
         # We use a Triton kernel instead of a PyTorch operation because modifying inputs in-place
@@ -157,7 +172,7 @@ def fused_linear_cross_entropy_backward(
             grad_output,
             H,
             BLOCK_SIZE=BLOCK_SIZE,
-            num_warps=32,
+            num_warps=num_warps,
         )
 
         # handle grad_weight
@@ -171,7 +186,7 @@ def fused_linear_cross_entropy_backward(
                 grad_output,
                 H,
                 BLOCK_SIZE=BLOCK_SIZE,
-                num_warps=32,
+                num_warps=num_warps,
             )
 
         if grad_bias is not None:
@@ -184,7 +199,7 @@ def fused_linear_cross_entropy_backward(
                 grad_output,
                 1,
                 BLOCK_SIZE=BLOCK_SIZE,
-                num_warps=32,
+                num_warps=num_warps,
             )
     return grad_input, grad_weight, grad_bias
 
