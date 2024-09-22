@@ -25,7 +25,9 @@ else:
 def _geglu_tanh_forward_kernel(
     a, b, c, stride, n_cols: tl.constexpr, BLOCK_SIZE: tl.constexpr
 ):
-    program_id = tl.program_id(0).cast(tl.int64)
+    # FIXME: program_id cast in AMD throws an error
+    # program_id = tl.program_id(0).cast(tl.int64)
+    program_id = tl.program_id(0)
 
     # locate start index
     a += program_id * stride
@@ -52,7 +54,9 @@ def _geglu_tanh_forward_kernel(
 def _geglu_tanh_backward_kernel(
     dc, a, b, stride, n_cols: tl.constexpr, BLOCK_SIZE: tl.constexpr
 ):
-    program_id = tl.program_id(0).cast(tl.int64)
+    # FIXME: program_id cast in AMD throws an error
+    # program_id = tl.program_id(0).cast(tl.int64)
+    program_id = tl.program_id(0)
 
     # locate start index
     dc += program_id * stride
