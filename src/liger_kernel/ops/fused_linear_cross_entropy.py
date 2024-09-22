@@ -54,6 +54,13 @@ def fused_linear_cross_entropy_forward(
     # NOTE: skip .item() here to avoid CUDA synchronization
     total_n_non_ignore = (target != ignore_index).sum()
 
+    if torch.cuda.is_available() and torch.version.cuda:
+        num_warps = 32
+    elif torch.cuda.is_available() and torch.version.hip:
+        num_warps = 16
+    else:
+        raise NotImplementedError
+
     for chunk_id in range(num_chunks):
         start_idx = chunk_id * chunk_size
         end_idx = min((chunk_id + 1) * chunk_size, BT)
@@ -92,7 +99,7 @@ def fused_linear_cross_entropy_forward(
             label_smoothing=label_smoothing,
             reduction=reduction,
             BLOCK_SIZE=BLOCK_SIZE,
-            num_warps=32,
+            num_warps=num_warps,
         )
 
         # gradient of logits_chunk is computed in-place by the above triton kernel.
