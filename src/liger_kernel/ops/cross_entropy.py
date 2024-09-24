@@ -212,6 +212,13 @@ def cross_entropy_forward(_input, target, ignore_index, label_smoothing, reducti
     if target.stride(-1) != 1:
         target = target.contiguous()
 
+    if torch.cuda.is_available() and torch.version.cuda:
+        num_warps = 32
+    elif torch.cuda.is_available() and torch.version.hip:
+        num_warps = 16
+    else:
+        raise NotImplementedError
+
     # Here we use a trick to store X_ptr gradient in X_ptr so we can save memory
     liger_cross_entropy_kernel[(n_rows,)](
         X_ptr=_input,
@@ -228,7 +235,7 @@ def cross_entropy_forward(_input, target, ignore_index, label_smoothing, reducti
         BLOCK_SIZE=BLOCK_SIZE,
         # TODO: 32 seems to give the best performance
         # Performance is quite sensitive to num_warps
-        num_warps=32,
+        num_warps=num_warps,
     )
 
     loss = torch.sum(loss_1d)
@@ -247,13 +254,20 @@ def cross_entropy_backward(_input, grad_output):
         n_rows = BT
         BLOCK_SIZE = min(MAX_FUSED_SIZE, triton.next_power_of_2(V))
 
+        if torch.cuda.is_available() and torch.version.cuda:
+            num_warps = 32
+        elif torch.cuda.is_available() and torch.version.hip:
+            num_warps = 16
+        else:
+            raise NotImplementedError
+
         element_mul_kernel[(n_rows,)](
             _input,
             _input.stride(-2),
             grad_output,
             V,
             BLOCK_SIZE=BLOCK_SIZE,
-            num_warps=32,
+            num_warps=num_warps,
         )
 
     return _input
